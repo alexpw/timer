@@ -3,87 +3,96 @@
 
 namespace Alexpw\Timer;
 
+/**
+ * A basic timer for benchmarking.
+ */
 class Timer
 {
-    protected $timers;
-    protected $maxNameLength = 0;
+    protected $runs;
+    protected $max_label_length = 0;
     protected $total = 0;
 
     public function __construct()
     {
-        $this->timers = new \SplObjectStorage;
+        $this->runs = new \SplObjectStorage;
     }
 
-    public function start($name)
+    /**
+     * @param string $label
+     */
+    public function start($label)
     {
-        $this->maxNameLength = max(strlen($name), $this->maxNameLength);
+        $this->max_label_length = max(strlen($label), $this->max_label_length);
 
-        $run = new Runner;
-        $run->name         = $name;
-        $run->startMemory  = memory_get_usage();
-        $run->startTime    = microtime(true);
+        $run = new Run;
+        $run->label        = $label;
+        $run->start_memory = memory_get_usage();
+        $run->start_time   = microtime(true);
         return $run;
     }
 
-    public function end(Runner $run)
+    /**
+     * @param Run $run
+     */
+    public function end(Run $run)
     {
         $end         = microtime(true);
-        $mem         = memory_get_usage() - $run->startMemory;
-        $run->time   = bcsub($end, $run->startTime, 6) * 1000;
-        $run->mem    = $this->memoryToString($mem);
+        $mem         = memory_get_usage() - $run->start_memory;
+        $run->time   = bcsub($end, $run->start_time, 6) * 1000;
+        $run->memory = $this->memoryToString($mem);
         $this->total = bcadd($this->total, $run->time);
 
-        $this->timers->attach($run);
+        $this->runs->attach($run);
     }
 
-    public function __toString()
+    /**
+     * @return SplObjectStorage
+     */
+    public function getRuns()
     {
-        return $this->render();
+        return $this->runs;
     }
 
+    /**
+     * Render as a string for the console.
+     * @return string
+     */
     public function render()
     {
-        $marginLength = 3;
-        $margin = str_repeat(' ', $marginLength);
+        $max_label_length = $this->max_label_length + 5;
+        $dashes = str_repeat('-', $max_label_length + 39) . "\n";
+        $margin = str_repeat(' ', 2);
 
-        $maxNameLength = $this->maxNameLength + 7;
-        $dashes = str_repeat('-', $maxNameLength + 35 + $marginLength);
+        $header = sprintf(
+            "%s %-{$max_label_length}s %-12s %-12s %s\n",
+            $margin, 'label', 'time (ms)', 'perc', 'memory'
+        );
 
-        $out = '';
-        $out .= $margin .
-                str_pad('timer', $maxNameLength) .
-                str_pad("time (ms)", 12) .
-                str_pad("perc ", 12) .
-                str_pad("mem", 6, ' ', STR_PAD_LEFT) .
-                "\n";
-
-        $out .= "$dashes\n";
-
-        foreach ($this->timers as $run) {
-
-            $perc = number_format(
-                ($run->time * 100) / $this->total,
-                2,
-                '.',
-                ''
+        $body = '';
+        foreach ($this->runs as $run) {
+            $body .= sprintf(
+                "%s %-{$max_label_length}s %-10s %6s %14s\n",
+                $margin,
+                $run->label,
+                $run->time,
+                number_format(($run->time * 100) / $this->total, 2, '.', ''),
+                $run->memory
             );
-            $out .= $margin .
-                    str_pad($run->name, $maxNameLength, ' ') .
-                    str_pad($run->time, 10) .
-                    str_pad($perc, 6, ' ', STR_PAD_LEFT) .
-                    str_pad($run->mem, 14, ' ', STR_PAD_LEFT) .
-                    "\n";
         }
-        $out .= "$dashes\n";
-        return $out;
+        return $header . $dashes . $body . $dashes;
     }
 
+    /**
+     * Convert memory to a human readable string for the console.
+     * @param int $mem In bytes
+     * @return string
+     */
     protected function memoryToString($mem)
     {
         $abs = abs($mem);
         if ($abs < 1024) {
             return "$mem Bytes";
-        } else if ($abs < 1048576) {
+        } elseif ($abs < 1048576) {
             return round($mem / 1024, 2)." KB";
         } else {
             return round($mem / 1048576, 2)." MB";

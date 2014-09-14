@@ -3,9 +3,9 @@
 
 namespace Alexpw\Timer;
 
-class Runner
+class Run
 {
-	public $name;
+	public $label;
 	public $startMemory;
 	public $startTime;
 	public $time;
